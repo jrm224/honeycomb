@@ -1,6 +1,7 @@
 # Put imports here
 import matplotlib.pyplot as plt
 import numpy as np
+import random as rnd
 
 # Actual code to run here
 
@@ -9,10 +10,10 @@ import numpy as np
 
 class Hive:
 	"""
-	holds information on indivudal cells, accesses cells and performs operations on cells and cell walls
+	holds information on individual cells, accesses cells and performs operations on cells and cell walls
 	"""
 	def __init__(self):
-		
+		self.cells = {(0,0):Cell(position=(0,0))}	# use tuple as key and position (keys in python dicts have to be immutable)
 
 class Cell:
 	"""
@@ -23,12 +24,12 @@ class Cell:
 	"""
 	def __init__(self, position, walls=np.zeros(6)):
 		# initialises the cell, by default with walls of height 0
-		self.position = position	# [x,y], position within the beehive, gets passed to the cell when the cell gets initiated
+		self.position = position	# (x,y), position within the beehive, gets passed to the cell when the cell gets initiated
 		self.walls = walls		# wall height where wall id is the index in that list and the value is the wall height
 	
 	def grow_wall(self, wall=0):
 		# grows a certain wall cell
-		self.walls(wall) += 1
+		self.walls[wall] += 1
 	
 	
 
