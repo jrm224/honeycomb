@@ -1,6 +1,6 @@
 # Put imports here
 import matplotlib.pyplot as plt
-import numpy
+import numpy as np
 
 # Actual code to run here
 
@@ -17,10 +17,18 @@ class Hive:
 class Cell:
 	"""
 	holds information about own walls (height) and base (built, not built)
+	
+	NOTES
+	in contrast to what we've discussed before, I reckon numbering the walls 0-6 clockwise is the best option (easier to determine which cells grow in what turns etc)
 	"""
-	def __init__(self, position):
+	def __init__(self, position, walls=np.zeros(6)):
+		# initialises the cell, by default with walls of height 0
 		self.position = position	# [x,y], position within the beehive, gets passed to the cell when the cell gets initiated
-		self.walls = [0,0,0,0,0,0]	# wall height where wall id is the index in that list and the value is the wall height
+		self.walls = walls		# wall height where wall id is the index in that list and the value is the wall height
+	
+	def grow_wall(self, wall=0):
+		# grows a certain wall cell
+		self.walls(wall) += 1
 	
 	
 
