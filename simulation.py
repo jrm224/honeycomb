@@ -20,7 +20,7 @@ class Cell:
 	holds information about own walls (height) and base (built, not built)
 	
 	NOTES
-	in contrast to what we've discussed before, I reckon numbering the walls 0-6 clockwise is the best option (easier to determine which cells grow in what turns etc)
+	in contrast to what we've discussed before, I reckon numbering the walls 0-5 clockwise is the best option (easier to determine which cells grow in what turns etc)
 	"""
 	def __init__(self, position, walls=np.zeros(6)):
 		# initialises the cell, by default with walls of height 0
