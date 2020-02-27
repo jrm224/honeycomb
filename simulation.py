@@ -29,15 +29,26 @@ class Cell:
 	
 	def grow_wall(self, wall=0):
 		# grows a certain wall cell
-		self.walls[wall] += 1
-	
-	
+		self.walls[wall] += 1	
 
 class Bee:
 	"""
 	defines bee's behaviour. holds information on position, orientation (?), flying/not flying, weight of carried pulp...
-	"""
-
+    
+    NOTES
+    I think we can contain all useful information in position and pulp where position = [x,y,theta] and then if it's flying we can set [999,999,0] or something like that
+	I think the only action Bee class has to make is updating it's position, so we may as well just pass it's new position to it as it depends on the hive class
+    """
+    def __init__(self, position):
+        self.position = position
+        self.pulp = 0
+    
+    def get_current_state():
+        return self.position, self.pulp
+        
+    def request_action(action):
+        self.position = action
+        
 class Viewer:
 	"""
 	defines how the GUI and the display looks like 
