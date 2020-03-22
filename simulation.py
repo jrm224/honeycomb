@@ -1,85 +1,270 @@
 # Put imports here
 import matplotlib.pyplot as plt
 import numpy as np
-import random as rnd
+import random as rand
+from PyQt5 import QtWidgets, uic
+from PyQt5.QtWidgets import (QVBoxLayout, QSlider, QDialog)
+from PyQt5.QtCore import Qt, QPoint
+from PyQt5.QtGui import QPainter, QBrush, QPen, QPolygon
+from pyqtgraph import PlotWidget, plot
+import pyqtgraph as pg
+import sys  # We need sys so that we can pass argv to QApplication
+import os
+import copy
 
-# Actual code to run here
-viewer = Viewer()
-parameters = viewer.get_params()
-N = parameters[0]
-bees = initialise_bees(N)
-hive = Hive()
-for t in range(T):
-    for bee in bees:
-        bee_state = bee.get_current_state()
-        bee.request_action(calculate_action(bee_state, hive, parameters))
-        hive.set_cells()
-        
 def calculate_action(bee_state, hive, parameters):
     """
     calculate the action for a particular bee to take in a timestep
     """
-    N, Fp, Lu = parameters
-    position, orientation, load, state = bee_state
+    N, Fp, Lu, Ds, D, move_parameters = parameters
+    position, orientation, load, state, wall_number = bee_state
+    print(state)
+    
     if state == 0:   # Searching for Pulp
         if rand.random() <= Fp:
-            return [position, orientation, load, state + 1]
+            return [position, orientation, load, state + 1, wall_number]
         else:
             return bee_state
         
     elif state  == 1:   # Collecting Pulp
-        load = load + 1
+        load += 1
         if load == Lu:
-            return [position, orientation, load, state + 1]
+            return [position, orientation, load, state + 1, wall_number]
         else:
-            return bee_state
+            return [position, orientation, load, state, wall_number]
         
     elif state  == 2:   # Coming in to land
         occupied, side, site, edges = find_landing_site(hive)
         if occupied: # Failed to land, site was occupied
-            return bee_state 
+            return [position, orientation, load, state, wall_number]
         elif side: # Landed on side
-            return [site, rand.randint(6), load, state + 1] 
+            hive.get_cells()[site].toggle_bee(True)
+            return [site, rand.randint(0, 5), load, state + 1, wall_number] 
         else: # Landed on face
-            return [site, rand.randint(6), load, state + 2]
+            hive.get_cells()[site].toggle_bee(True)            
+            return [site, rand.randint(0, 5), load, state + 2, wall_number]
     
     elif state  == 3:   # Just landed on the side
-        return [position, rand.choice(edges), load, state + 1] # Turn to face
+        cells = hive.get_cells().keys()
+        x,y = position
+        edges = check_for_edges(x,y,cells)
+        poss_turns = [0,1,2,3,4,5]
+        for i in edges:
+            poss_turns.remove(i)
+        return [position, rand.choice(poss_turns), load, state + 1, wall_number] # Turn to face
     
-    elif state  == 4:   # On the face`
+    elif state  == 4:   # Just arrived on the face
+        walls = hive.get_cells()[position].walls
+        tall_walls = np.where(walls>5)#[index for index, value in walls if wall > 5]
+        if len(tall_walls[0]) == 0: # Small Cell, very likely to stay
+            if rand.random() <= Ds:
+                return [position, orientation, load, state + 1, wall_number]
+            else:
+                movement = move(position, orientation, hive, move_parameters)
+                if movement[0] != position:
+                    hive.get_cells()[movement[0]].toggle_bee(True)
+                    hive.get_cells()[position].toggle_bee(False)
+                return [movement[0], movement[1], load, state, wall_number]
+        else:  # Chance of staying depends on num of tall walls
+            if rand.random() <= D[len(tall_walls[0])]:
+                return [position, orientation, load, state + 2, wall_number]
+            else:
+                movement = move(position, orientation, hive, move_parameters)
+                if movement[0] != position:
+                    hive.get_cells()[movement[0]].toggle_bee(True)
+                    hive.get_cells()[position].toggle_bee(False)
+                return [movement[0], movement[1], load, state, wall_number]
         
+    elif state == 5:   # Building the small cell
+        if wall_number != 99:
+            wall_number += 1
+            wall_number = wall_number%6
+            load += -1
+            hive.grow_cells(position, wall_number)
+            if load == 0:
+                hive.get_cells()[position].toggle_bee(False)            
+                return [(999,999), 0, 0, 0, 99]
+            else:
+                return [position, orientation, load, state, wall_number]
+        else:
+            wall_number = rand.randint(0,5)
+            load += -1
+            hive.grow_cells(position, wall_number)
+            return [position, orientation, load, state, wall_number]
+        
+    elif state == 6:   # Large cell detected
+        cells = hive.get_cells().keys()
+        x,y = position
+        edges = check_for_edges(x,y,cells)
+        if edges == []: # Not on the side lengthen
+            walls = hive.get_cells()[position].walls
+            candidates = []
+            for i in range(6):
+                if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
+                    candidates.append((i,True))
+                if walls[i] != max(walls) and walls[(i-1)%6] == max(walls):
+                    candidates.append((i,False))
+            wall_number = rand.choice(candidates)
+            hive.grow_cells(position,wall_number[0])
+            load += -1
+            if load == 0:
+                hive.get_cells()[position].toggle_bee(False)            
+                return [(999,999), 0, 0, 0, 99]
+            elif wall_number[1]:
+                return [position, orientation, load, state + 1, wall_number[0]]
+            else:
+                return [position, orientation, load, state + 2, wall_number[0]]
+        else:  # On the side, initiate
+            print('Initiation!')
+            hive.add_cells(position, edges)
+            load += -4
+            return [position, orientation, load, state + 3, wall_number]
+        
+    elif state == 7: # Lengthen in positive direction
+        wall_number += 1
+        hive.grow_cells(position,wall_number%6)
+        load += -1
+        if load == 0:
+            hive.get_cells()[position].toggle_bee(False)            
+            return [(999,999), 0, 0, 0, 99]
+        else:
+            return [position, orientation, load, state, wall_number]
+    
+    elif state == 8: # Lengthen in negative direction
+        wall_number += -1
+        hive.grow_cells(position,wall_number%6)
+        load += -1
+        if load == 0:
+            hive.get_cells()[position].toggle_bee(False) 
+            return [(999,999), 0, 0, 0, 99]
+        else:
+            return [position, orientation, load, state, wall_number]
+    
+    elif state == 9:   # Building newly initiated cell
+        walls = hive.get_cells()[position].walls
+        candidates = []
+        print(walls)
+        for i in range(6):
+            if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
+                candidates.append((i,True))
+            if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
+                candidates.append((i,False))
+        wall_number = rand.choice(candidates)
+        hive.grow_cells(position,wall_number[0])
+        load += -1
+        if load == 0:
+            hive.get_cells()[position].toggle_bee(False)            
+            return [(999,999), 0, 0, 0, 99]
+        elif wall_number[1]:
+            return [position, orientation, load, 7, wall_number[0]]
+        else:
+            return [position, orientation, load, 8, wall_number[0]]    
+    
+def move(position, orientation, hive, parameters):
+    """
+    defines movement of a bee
+    """
+    Am, ASm, Bm, BSm = parameters
+    X = rand.random()
+    if X <= Am:
+        return move_given_orientation(position, orientation, hive)
+    elif X <= Am + ASm:
+        if rand.random() <= 0.5:
+            return move_given_orientation(position, (orientation+1)%6, hive)
+        else:
+            return move_given_orientation(position, (orientation-1)%6, hive)
+    elif X <= Am + ASm + Bm:
+        return move_given_orientation(position, (orientation+3)%6, hive)
+    else:# X <= Am + ASm + Bm + BSm:
+        if rand.random() <= 0.5:
+            return move_given_orientation(position, (orientation+4)%6, hive)
+        else:
+            return move_given_orientation(position, (orientation+2)%6, hive)
+    
+def move_given_orientation(position, orientation, hive):
+    """
+    find the position given by moving along orientation and checks for a bee
+    """
+    if orientation ==0:
+        new_position = (position[0]+1, position[1])
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
+    if orientation ==1:
+        new_position = (position[0]+1, position[1]-1)
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
+    if orientation ==2:
+        new_position = (position[0], position[1]-1)
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
+    if orientation ==3:
+        new_position = (position[0]-1, position[1])
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
+    if orientation ==4:
+        new_position = (position[0]-1, position[1]+1)
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
+    if orientation ==5:
+        new_position = (position[0], position[1]+1)
+        if new_position not in hive.get_cells().keys():
+            return position, orientation
+        elif hive.get_cells()[new_position].bee:
+            return position, orientation
+        else:
+            return new_position, orientation
         
 def find_landing_site(hive):
     """
     find a random unoccupied landing site on the hive
     """
-    cells = hive.get_cells().keys()
+    cells = list(hive.get_cells().keys())
     x,y = rand.choice(cells)
-    if hive.get_cells()((x,y)).bee: # Another bee there, abort
+    if hive.get_cells()[(x,y)].bee: # Another bee there, abort
         return [True, False, (0,0), []]
     edges = check_for_edges(x,y,cells)
-    elif  edges != []:
-        return [False, True, chosen_site, edges] # Landed on the side
+    if edges != []:
+        return [False, True, (x,y), edges] # Landed on the side
     else:
-        return [False, False, chosen_site, []] # Landed on the face
+        return [False, False, (x,y), []] # Landed on the face
 
 def check_for_edges(x,y,cells):
     """ 
     Return the possible turns towards the hive for a bee on the edge
     """
-    edges = [0,1,2,3,4,5]
+    edges = []
     if (x+1, y) not in cells:
-        edges.remove(0)
+        edges.append(0)
     if (x-1, y) not in cells:
-        edges.remove(3)
+        edges.append(3)
     if (x, y+1) not in cells:
-        edges.remove(5)
+        edges.append(5)
     if (x, y-1) not in cells:
-        edges.remove(2)
+        edges.append(2)
     if (x+1, y-1) not in cells:
-        edges.remove(1)
+        edges.append(1)
     if (x-1, y+1) not in cells:
-        edges.remove(4)
+        edges.append(4)
     return edges
     
 def initialise_bees(N):
@@ -88,64 +273,226 @@ def initialise_bees(N):
     """
     bees = []
     for i in range(N):
-        bees.append(Bee([(999.999),0]))
+        bees.append(Bee([(999.999),0,0,0,99]))
     return bees
 
 # Classes here
 
 class Hive:
-	"""
-	holds information on individual cells, accesses cells and performs operations on cells and cell walls
-	"""
-	def __init__(self):
-		self.cells = {(0,0):Cell(position=(0,0))}	# use tuple as key and position (keys in python dicts have to be immutable)
+    """
+    holds information on individual cells, accesses cells and performs operations on cells and cell walls
+    """
+    def __init__(self):
+        self.cells = {}
+        for i in range(10):
+            if i < 4:
+                self.cells[(i-1,0)] = copy.deepcopy(Cell(position=(i-1,0)))
+            elif i < 7:
+                self.cells[(i-5,1)] = copy.deepcopy(Cell(position=(i-5,1)))
+            else:
+                self.cells[(i-7,-1)] = copy.deepcopy(Cell(position=(i-7,-1)))
+        for j in range(6):
+            self.cells[(0,0)].grow_wall(j)
+            self.cells[(1,0)].grow_wall(j)
+        #self.cells = {(0,0):Cell(position=(0,0)),(1,0):Cell(position=(1,0))}	# use tuple as key and position (keys in python dicts have to be immutable)
     
     def get_cells(self):
         return self.cells
         
-    def grow_cells(self, action):
-        Cell.grow_wall(action)
+    def grow_cells(self, position, wall):
+        self.cells[position].grow_wall(wall)
+        
+    def add_cells(self, position, edges):
+        x,y = position
+        for i in edges:
+            if i == 0:
+                self.cells[(x+1,y)] = copy.deepcopy(Cell(position=(x+1,y)))
+            if i == 1:
+                self.cells[(x+1,y-1)] = copy.deepcopy(Cell(position=(x+1,y-1)))
+            if i == 2:
+                self.cells[(x,y-1)] = copy.deepcopy(Cell(position=(x,y-1)))
+            if i == 3:
+                self.cells[(x-1,y)] = copy.deepcopy(Cell(position=(x-1,y)))
+            if i == 4:
+                self.cells[(x-1,y+1)] = copy.deepcopy(Cell(position=(x-1,y+1)))
+            if i == 5:
+                self.cells[(x,y+1)] = copy.deepcopy(Cell(position=(x,y+1)))
         
 class Cell:
-	"""
-	holds information about own walls (height) and base (built, not built)
-	
-	NOTES
-	in contrast to what we've discussed before, I reckon numbering the walls 0-5 clockwise is the best option (easier to determine which cells grow in what turns etc)
-	"""
-	def __init__(self, position, walls=np.zeros(6)):
-		# initialises the cell, by default with walls of height 0
-		self.position = position	# (x,y), position within the beehive, gets passed to the cell when the cell gets initiated
-		self.walls = walls		# wall height where wall id is the index in that list and the value is the wall height
-	    self.bee = False
+    """
+    holds information about own walls (height) and base (built, not built)
     
-    def landing(self):
-        self.bee = True
+    NOTES
+    in contrast to what we've discussed before, I reckon numbering the walls 0-5 clockwise is the best option (easier to determine which cells grow in what turns etc)
+    """
+    
+    def __init__(self, position, walls=np.zeros(6)):
+        # initialises the cell, by default with walls of height 0
+        self.position = position	# (x,y), position within the beehive, gets passed to the cell when the cell gets initiated
+        self.walls = walls		# wall height where wall id is the index in that list and the value is the wall height
+        self.bee = False
+    
+    def toggle_bee(self,toggle):
+        self.bee = toggle
         
-	def grow_wall(self, wall=0):
-		# grows a certain wall cell
-		self.walls[wall] += 1	
+    def grow_wall(self, wall):
+        # grows a certain wall cell
+        self.walls[wall] += 1	
+    
 
 class Bee:
-	"""
-	defines bee's behaviour. holds information on position, orientation (?), flying/not flying, weight of carried pulp...
+    """
+    defines bee's behaviour. holds information on position, orientation (?), flying/not flying, weight of carried pulp...
     
     NOTES
     I think we can contain all useful information in position and pulp where position = [x,y,theta] and then if it's flying we can set [999,999,0] or something like that
-	I think the only action Bee class has to make is updating it's position, so we may as well just pass it's new position to it as it depends on the hive class
+    I think the only action Bee class has to make is updating it's position, so we may as well just pass it's new position to it as it depends on the hive class
     """
     def __init__(self, position):
         self.position = position
-        self.pulp = 0
     
     def get_current_state(self):
-        return self.position, self.pulp
+        return self.position
         
     def request_action(self, action):
         self.position = action
         
-class Viewer:
-	"""
-	defines how the GUI and the display looks like 
-	"""
+class Viewer(QDialog):
+    """
+    defines how the GUI and the display looks like 
+    """
+#    def __init__(self):
+#        super().__init__()
+#        self.initUI()
+#        
+#    def initUI(self):  
+#        
+#        self.setWindowTitle('Parsai & Penzes 1992 Simulation')
+#        
+#        self.simulation = pg.PlotWidget()
+#        self.simulation.plot([0,0,0],[1,1,1])
+#        
+#        self.time_slider = QSlider(Qt.Horizontal)
+#        
+#        self.layout = QVBoxLayout()
+#        
+#        self.layout.addWidget(self.simulation)           
+#        self.layout.addWidget(self.time_slider)
+#        
+#        self.setLayout(self.layout)
+#        self.show()    
+#        
+#    def update_gui(self, hive):
+#        cells = hive.get_cells().keys()
+##        for i in cells:
+##            painter = QPainter()
+##            painter.setPen(QPen(Qt.black,  3, Qt.SolidLine))
+##            x,y = i
+##            points = [QPoint(x+5,y+10), QPoint(x+10,y), QPoint(x+5,y-10), QPoint(x-5,y-10), QPoint(x-10,y), QPoint(x-5,y+10)]
+##            poly = QPolygon(points)
+##            painter.drawPolygon(poly)
+#            
+#    def get_params(self):
+#        print("N, Fp, Lu, Ds, D0-5, Am, ASm, Bm, BSm")
+#        return [10,0.25,9,0.95,[0,0,0.1,0.5,0.8,0.9],[0.5,0.2,0.02,0.04]]#[input() , input(), input(), [input(), input(), input(), input(), input(), input()], [input(), input(), input(), input()]]
 
+# Actual code to run here
+#viewer = Viewer()
+    
+def line(pos0,pos1):
+    x0, y0 = pos0
+    x1, y1 = pos1
+    xpoints = []
+    ypoints = []
+    for i in range(100):
+        xpoints.append(x0 + i/100*(x1-x0))
+        ypoints.append(y0 + i/100*(y1-y0))
+    return xpoints, ypoints
+
+def hexagon(position,r):
+    x,y = position
+    long = np.sqrt((4/3)*r**2)
+    short = r
+    xpoints = line((x,y+long),(x+short,y+long/2))[0]+line((x+short,y+long/2),(x+short,y-long/2))[0]+line((x+short,y-long/2),(x,y-long))[0]+line((x,y-long),(x-short,y-long/2))[0]+line((x-short,y-long/2),(x-short,y+long/2))[0]+line((x-short,y+long/2),(x,y+long))[0]
+    ypoints = line((x,y+long),(x+short,y+long/2))[1]+line((x+short,y+long/2),(x+short,y-long/2))[1]+line((x+short,y-long/2),(x,y-long))[1]+line((x,y-long),(x-short,y-long/2))[1]+line((x-short,y-long/2),(x-short,y+long/2))[1]+line((x-short,y+long/2),(x,y+long))[1]
+    return xpoints, ypoints
+
+def arrow(position,orientation):
+    x,y = position
+    if orientation == 0:
+        sin = 0
+        cos = 1
+    if orientation == 1:
+        sin = 0.5
+        cos = -np.sqrt(3)/2
+    if orientation == 2:
+        sin = -0.5
+        cos = -np.sqrt(3)/2
+    if orientation == 3:
+        sin = 0
+        cos = -1
+    if orientation == 4:
+        sin = -0.5
+        cos = np.sqrt(3)/2
+    if orientation == 5:
+        sin = 0.5
+        cos = np.sqrt(3)/2
+    xpoints = line((x-cos,y-cos),(x+cos,y+sin))[0] + line((x+cos*3/4,y),(x+cos,y+sin))[0]+ line((x,y+sin*3/4),(x+cos,y+sin))[0]
+    ypoints = line((x-cos,y-cos),(x+cos,y+sin))[1] + line((x+cos*3/4,y),(x+cos,y+sin))[1]+ line((x,y+sin*3/4),(x+cos,y+sin))[1]
+    return xpoints, ypoints
+
+parameters = [4,0.25,9,0.95,[0.2,0.2,0.3,0.5,0.8,0.9,0.2],[0.5,0.2,0.02,0.04]]#viewer.get_params()
+N = parameters[0]
+bees = initialise_bees(N)
+hive = Hive()
+print(hive.get_cells()[(0,0)].walls)
+#viewer.update_gui(hive)
+data = []
+for t in range(1001):
+    for bee in bees:
+        bee_state = bee.get_current_state()
+        bee.request_action(calculate_action(bee_state, hive, parameters))
+    data.append(copy.deepcopy(hive.get_cells()))
+print(data[0][(0,0)].walls)
+fig, ax_lst = plt.subplots(2,2)
+ax_lst = ax_lst.ravel()
+for i in range(4):
+    x = []
+    y = []
+    C = []
+    for cell in list(data[i*250].keys()):
+        height = np.mean(data[i*250][cell].walls.copy())
+        x_ = (cell[0] + cell[1]/2)*10
+        y_ = (cell[1]*np.sqrt(3)/2)*10            
+        if height != 0:
+            #print('height', height)
+            x = x + hexagon((x_,y_),5)[0] + hexagon((x_,y_),4)[0]
+            y = y + hexagon((x_,y_),5)[1] + hexagon((x_,y_),4)[1]
+            for j in range(600):
+                C.append(0)
+            for k in range(600):
+                C.append(np.mean(data[i*250][cell].walls.copy()))
+            #print('C', C[5],C[900])
+        #else:
+        #    x = x + hexagon((x_,y_),2)[0]
+        #    y = y + hexagon((x_,y_),2)[1]
+        #    for j in range(600):
+        #        C.append(0)
+        print(data[i*250][cell].bee)
+        if data[i*250][cell].bee:
+            print("BEE!")
+            x = x + hexagon((x_-1,y_),1)[0]+ hexagon((x_+1,y_),1)[0]
+            y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
+            for j in range(1200):
+                C.append(5)
+            
+                
+        #print(data[i*500][cell].walls)
+    #x = [x for _,x in sorted(zip(C,x), reverse = True)]
+    #y = [x for _,x in sorted(zip(C,y), reverse = True)]
+    #C = sorted(C, reverse = True)
+#    x = [ x + y/2 for x, y in data[i*100] ]
+#    y = [ y*np.sqrt(3)/2 for x, y in data[i*100] ]
+#    print(x,y)
+    im = ax_lst[i].hexbin(x,y,C, gridsize = 1000)
+cb = fig.colorbar(im, ax=ax_lst)
