@@ -170,11 +170,15 @@ def calculate_action(bee_state, hive, parameters):
         # Pick a valid wall to start on
         walls = hive.get_cells()[position].walls
         candidates = []
+        # Either besides a high wall
         for i in range(6):
             if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
                 candidates.append((i,True))
             if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
                 candidates.append((i,False))
+        # Or if there are no high walls any wall is fine! 
+        if candidates == []:
+            candidates = [(0,True),(1,True),(2,True),(3,True),(4,True),(5,True)]
         wall_number = rand.choice(candidates)
         # Grow that wall
         hive.grow_cells(position,wall_number[0])
@@ -531,6 +535,8 @@ for i in range(4):
     
     # On each plot, plot each cell as a large hexagon with a smaller hexagon within it that's coloured by it's average height
     for cell in list(data[i*250].keys()):
+        # Find average height
+        height = np.mean(data[i*250][cell].walls.copy())
         # Convert to hexagonal coordinate system
         x_ = (cell[0] + cell[1]/2)*10
         y_ = (cell[1]*np.sqrt(3)/2)*10     
@@ -542,7 +548,7 @@ for i in range(4):
             for j in range(600):
                 C.append(0)
             for k in range(600):
-                C.append(np.mean(data[i*250][cell].walls.copy()))
+                C.append(height)
                 
         # This optionally plots the side as smaller hexagons                
         #else:
