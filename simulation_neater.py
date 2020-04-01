@@ -523,7 +523,7 @@ for t in range(1001):
 fig, ax_lst = plt.subplots(2,2)
 ax_lst = ax_lst.ravel()
 for i in range(4):
-    print('Plotting Subplot ', i,' of 4')
+    print('Plotting Subplot ', i+1,' of 4')
     # Create lists for the x and y values of lines in the plot and their colour
     x = []
     y = []
