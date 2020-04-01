@@ -18,8 +18,7 @@ def calculate_action(bee_state, hive, parameters):
     """
     N, Fp, Lu, Ds, D, move_parameters = parameters
     position, orientation, load, state, wall_number = bee_state
-    print(state)
-    
+        
     ## Searching for Pulp ##
     if state == 0:   
         if rand.random() <= Fp:
@@ -488,7 +487,8 @@ def arrow(position,orientation):
 ### Main Loop ###
     
 # Manually set parameters since I never develoepd the viewer 
-parameters = [4,0.25,9,0.95,[0.2,0.2,0.3,0.5,0.8,0.9,0.2],[0.5,0.2,0.02,0.04]] #viewer.get_params()
+#             [N,   Fp, Lu,   Ds,                          D0-5, [ Am, ASm,   Bm,  BSm]
+parameters =  [4, 0.25,  9, 0.95, [0.2,0.2,0.3,0.5,0.8,0.9,0.2], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
 
 # Initialise N bees
 N = parameters[0]
@@ -507,6 +507,8 @@ hive = Hive()
 # For each bee at each time step get it's state and then using it's state calculate it's action
 data = []
 for t in range(1001):
+    if t % 250 == 0:
+        print('Time Step ', t, ' of 1001')
     for bee in bees:
         bee_state = bee.get_current_state()
         bee.request_action(calculate_action(bee_state, hive, parameters))        
@@ -521,6 +523,7 @@ for t in range(1001):
 fig, ax_lst = plt.subplots(2,2)
 ax_lst = ax_lst.ravel()
 for i in range(4):
+    print('Plotting Subplot ', i,' of 4')
     # Create lists for the x and y values of lines in the plot and their colour
     x = []
     y = []
@@ -550,7 +553,6 @@ for i in range(4):
         
         # Then add the bees as two smaller hexagons colour = 5
         if data[i*250][cell].bee:
-            print("BEE!")
             x = x + hexagon((x_-1,y_),1)[0]+ hexagon((x_+1,y_),1)[0]
             y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
             for j in range(1200):
