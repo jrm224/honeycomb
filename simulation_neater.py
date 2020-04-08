@@ -16,7 +16,7 @@ def calculate_action(bee_state, hive, parameters):
     """
     calculate the action for a particular bee to take in a timestep
     """
-    N, Fp, Lu, Ds, D, move_parameters = parameters
+    N, Fp, Tc, Tw, Lu, Ds, D, move_parameters = parameters
     position, orientation, load, state, wall_number = bee_state
         
     ## Searching for Pulp ##
@@ -63,9 +63,9 @@ def calculate_action(bee_state, hive, parameters):
     elif state  == 4:  
         # Find the number of tall walls
         walls = hive.get_cells()[position].walls
-        tall_walls = np.where(walls>5)
+        #tall_walls = np.where(walls>5)
         
-        if len(tall_walls[0]) == 0: # it's a Small Cell we're very likely to stay            
+        if not any(walls>Tc):#len(tall_walls[0]) == 0: # it's a Small Cell we're very likely to stay            
             if rand.random() <= Ds: # We're staying, go to the build state
                 return [position, orientation, load, state + 1, wall_number]            
             else: # We're moving, use the 'move' function
@@ -75,16 +75,24 @@ def calculate_action(bee_state, hive, parameters):
                     hive.get_cells()[position].toggle_bee(False)
                 return [movement[0], movement[1], load, state, wall_number]
             
-        else:  # it's not a Small cell, chance of staying depends on the num of tall walls
-            if rand.random() <= D[len(tall_walls[0])]: # We're staying, go to the build state
+        else:  # it's not a Small cell, chance of staying depends on the num of tall walls        
+            # Figure out how many 'high walls' # 
+            tall_walls = find_tall_walls(walls,Tw)
+            if rand.random() <= D[tall_walls]: # We're staying, go to the build state
                 return [position, orientation, load, state + 2, wall_number]
             else: # We're moving, use the 'move' function
                 movement = move(position, orientation, hive, move_parameters)
                 if movement[0] != position:
                     hive.get_cells()[movement[0]].toggle_bee(True)
                     hive.get_cells()[position].toggle_bee(False)
-                return [movement[0], movement[1], load, state, wall_number]
-        
+                # Check if we're on the edge #
+                x,y = position
+                edges = check_for_edges(x,y,hive.get_cells().keys())
+                if edges == []: # if so initiate
+                    return [movement[0], movement[1], load, state, wall_number]
+                else: # otherwise go again
+                    return [movement[0], movement[1], load, state + 6, wall_number]
+                
     ## Building a Small Cell ##
     elif state == 5:
         # If we're new here, choose any wall to start building     
@@ -108,41 +116,28 @@ def calculate_action(bee_state, hive, parameters):
         
     ## Building a Large Cell ##
     elif state == 6:
-        # Check if we're on the side
-        cells = hive.get_cells().keys()
-        x,y = position
-        edges = check_for_edges(x,y,cells)
-        
-        # We're not on the side so lengthen
-        if edges == []:  
-            # Pick a valid wall to start on
-            walls = hive.get_cells()[position].walls
-            candidates = []
-            for i in range(6):
-                if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
-                    candidates.append((i,True))
-                if walls[i] != max(walls) and walls[(i-1)%6] == max(walls):
-                    candidates.append((i,False))
-            wall_number = rand.choice(candidates)            
-            # Grow that wall
-            hive.grow_cells(position,wall_number[0])
-            load += -1
-             # If we're empty remove bee and reset
-            if load == 0:
-                hive.get_cells()[position].toggle_bee(False)            
-                return [(999,999), 0, 0, 0, 99]            
-            # Otherwise continue in either the positive or negative direction
-            elif wall_number[1]:
-                return [position, orientation, load, state + 1, wall_number[0]]
-            else:
-                return [position, orientation, load, state + 2, wall_number[0]]
+    # Pick a valid wall to start on
+        walls = hive.get_cells()[position].walls
+        candidates = []
+        for i in range(6):
+            if walls[i] != max(walls) and walls[(i+1)%6] == max(walls):
+                candidates.append((i,True))
+            if walls[i] != max(walls) and walls[(i-1)%6] == max(walls):
+                candidates.append((i,False))
+        wall_number = rand.choice(candidates)            
+        # Grow that wall
+        hive.grow_cells(position,wall_number[0])
+        load += -1
+         # If we're empty remove bee and reset
+        if load == 0:
+            hive.get_cells()[position].toggle_bee(False)            
+            return [(999,999), 0, 0, 0, 99]            
+        # Otherwise continue in either the positive or negative direction
+        elif wall_number[1]:
+            return [position, orientation, load, state + 1, wall_number[0]]
+        else:
+            return [position, orientation, load, state + 2, wall_number[0]]
             
-        # We're on the side so initiate
-        else:  
-            hive.add_cells(position, edges)
-            load += -4
-            return [position, orientation, load, state + 3, wall_number]
-    
     ## Lengthen in the Positive Direction ##
     elif state == 7: 
         wall_number += 1
@@ -193,6 +188,30 @@ def calculate_action(bee_state, hive, parameters):
         else:
             return [position, orientation, load, 8, wall_number[0]]    
     
+    ## Initiate New Cell ##
+    # We're on the side so initiate
+    elif state == 10:
+        x,y = position
+        edges = check_for_edges(x,y,hive.get_cells().keys())
+        hive.add_cells(position, edges)
+        load += -4
+        return [position, orientation, load, state - 1, wall_number]
+    
+def find_tall_walls(walls, Tw):
+    walls_wrapped = walls + [walls[0]]
+    differences = [j-i for i, j in zip(walls_wrapped[:-1], walls_wrapped[1:])]
+    large_diff = np.where(abs(np.array(differences))>Tw)
+    tall_walls = 0
+    if large_diff[0].size > 1:
+        toggle = 0
+        if walls_wrapped[large_diff[0][0]]-walls_wrapped[large_diff[0][1]] > 0:
+            toggle = 1 # The first values high
+        for i in range(len(walls)):
+            if i in large_diff[0]:
+                toggle = 1-toggle
+            tall_walls += toggle
+    return int(tall_walls)
+
 def move(position, orientation, hive, parameters):
     """
     defines movement of a bee
@@ -491,8 +510,8 @@ def arrow(position,orientation):
 ### Main Loop ###
     
 # Manually set parameters since I never develoepd the viewer 
-#             [N,   Fp, Lu,   Ds,                          D0-5, [ Am, ASm,   Bm,  BSm]
-parameters =  [4, 0.25,  9, 0.95, [0.2,0.2,0.3,0.5,0.8,0.9,0.2], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
+#             [N,   Fp, Tc, Tw, Lu,   Ds,                       D0-5, [ Am, ASm,   Bm,  BSm]
+parameters =  [4, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
 
 # Initialise N bees
 N = parameters[0]
@@ -509,10 +528,11 @@ hive = Hive()
 ## Simulation ##
 
 # For each bee at each time step get it's state and then using it's state calculate it's action
+T = 1000
 data = []
-for t in range(1001):
-    if t % 250 == 0:
-        print('Time Step ', t, ' of 1001')
+for t in range(T+1):
+    if t % int(T/4) == 0:
+        print('Time Step ', t, ' of ', T+1)
     for bee in bees:
         bee_state = bee.get_current_state()
         bee.request_action(calculate_action(bee_state, hive, parameters))        
@@ -534,9 +554,9 @@ for i in range(4):
     C = []
     
     # On each plot, plot each cell as a large hexagon with a smaller hexagon within it that's coloured by it's average height
-    for cell in list(data[i*250].keys()):
+    for cell in list(data[int(i*T/4)].keys()):
         # Find average height
-        height = np.mean(data[i*250][cell].walls.copy())
+        height = np.mean(data[int(i*T/4)][cell].walls.copy())
         # Convert to hexagonal coordinate system
         x_ = (cell[0] + cell[1]/2)*10
         y_ = (cell[1]*np.sqrt(3)/2)*10     
@@ -558,7 +578,7 @@ for i in range(4):
         #        C.append(0)
         
         # Then add the bees as two smaller hexagons colour = 5
-        if data[i*250][cell].bee:
+        if data[int(i*T/4)][cell].bee:
             x = x + hexagon((x_-1,y_),1)[0]+ hexagon((x_+1,y_),1)[0]
             y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
             for j in range(1200):
@@ -575,5 +595,5 @@ for i in range(4):
     
     # Plot on a hexbin heatmap
     im = ax_lst[i].hexbin(x,y,C, gridsize = 1000)
-# Add one colour bar to the whole plot (not one for each subplot)
-cb = fig.colorbar(im, ax=ax_lst)
+    # Add one colour bar to the whole plot (not one for each subplot)
+    cb = fig.colorbar(im, ax=ax_lst)
