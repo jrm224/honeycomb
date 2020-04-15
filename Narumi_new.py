@@ -5,6 +5,11 @@ import time
 import math
 
 def rand_place_Ez(i):
+    """
+    is this used for randomised excavator placement? 
+    N is not passed anywhere?
+    also, there seems to be nothing returned
+    """
     side = rnd.random()
     if side < 0.25:
         Ez_positions[i], Ez_angles[i] = (0,rnd.randrange(0,N,1)),rnd.randrange(-180, 180)*np.pi/180
@@ -19,6 +24,9 @@ def rand_place_Ez(i):
 def Ez_area(position, angle, detect):
     """
     This finds all the grid points in a particular Ez or in a particular detection zone
+    Position and angle come from the Ez placement. Detect is a bool that says if we're detecting.
+    God knows what the a_valid and b_valid is, but I trust that the coordinate change (is that what's happening here?) works. 
+    Does this return a list of positions in xy coordinates that is available for detection for a particular Ez? 
     """
 #    a = range(round(-2*Ez_height),round(2*Ez_height))
 #    b = range(round(-2*Ez_height),round(2*Ez_height))
@@ -52,7 +60,7 @@ def Ez_area(position, angle, detect):
 
 ## Parameters ##
     
-N = 100
+N = 100 # size of the simulation
 initial_wax = [1, int(N/2), int(N/2)] # length/2, origin (x,y)
 num_steps = 500
 num_frames = 20
@@ -75,6 +83,9 @@ plot[initial_wax[1]-initial_wax[0]:initial_wax[1]+initial_wax[0],initial_wax[1]-
 wax_x, wax_y = np.where(plot == 1)
 wax = list(zip(wax_x,wax_y))
 # Initialise excavation zones
+
+# I've checked it up to here so far
+
 area_Ez = (Ez_height-Ez_width/2)*Ez_width+(np.pi*(Ez_width)**2)/8
 num_Ez = round(N*N*area_fraction/area_Ez)
 Ez_positions = np.zeros(num_Ez, dtype=object)
