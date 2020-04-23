@@ -504,97 +504,101 @@ def arrow(position,orientation):
     return xpoints, ypoints
 
 
-### Main Loop ###
+def main(N=4, T=6000):
     
-# Manually set parameters since I never develoepd the viewer 
-#             [N,   Fp, Tc, Tw, Lu,   Ds,                       D0-5, [ Am, ASm,   Bm,  BSm]
-parameters =  [8, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
-
-# Initialise N bees
-N = parameters[0]
-bees = initialise_bees(N)
-
-# Initialise the hive
-hive = Hive()
-
-# Viewer was never developed
-#viewer.update_gui(hive)
-
-
-
-## Simulation ##
-
-# For each bee at each time step get it's state and then using it's state calculate it's action
-T = 6000
-data = []
-state_counts = [0,0,0,0,0,0,0,0,0,0,0]
-for t in range(T+1):
-    if t % int(T/4) == 0:
-        print('Time Step ', t, ' of ', T+1)
-    for bee in bees:
-        bee_state = bee.get_current_state()
-        bee.request_action(calculate_action(bee_state, hive, parameters))        
-        state_counts[bee_state[3]] += 1
-    # Then record the state of the hive at each time step for plotting
-    data.append(copy.deepcopy(hive.get_cells()))
-    
-## Plotter ##   (since the Viewer was never Developed)
-    
-# Set up axes for plot of four timesteps
-fig, ax_lst = plt.subplots(2,2)
-ax_lst = ax_lst.ravel()
-for i in range(4):
-    print('Plotting Subplot ', i+1,' of 4')
-    # Create lists for the x and y values of lines in the plot and their colour
-    x = []
-    y = []
-    C = []
-    cell_count = 0
-    # On each plot, plot each cell as a large hexagon with a smaller hexagon within it that's coloured by it's average height
-    for cell in list(data[int(i*T/4)].keys()):
-        cell_count += 1
-        # Find average height
-        height = np.mean(data[int(i*T/4)][cell].walls.copy())
-        # Convert to hexagonal coordinate system
-        x_ = (cell[0] + cell[1]/2)*10
-        y_ = (cell[1]*np.sqrt(3)/2)*10     
-        # Record x and y values
-        if height != 0:
-            x = x + hexagon((x_,y_),5)[0] + hexagon((x_,y_),4)[0]
-            y = y + hexagon((x_,y_),5)[1] + hexagon((x_,y_),4)[1]
-            # Record Colour, colour = 0 for the outer hexagon and the average height for the inner
-            for j in range(600):
-                C.append(0)
-            for k in range(600):
-                C.append(height)
-                
-        # This optionally plots the side as smaller hexagons                
-        #else:
-        #    x = x + hexagon((x_,y_),2)[0]
-        #    y = y + hexagon((x_,y_),2)[1]
-        #    for j in range(600):
-        #        C.append(0)
+    ### Main Loop ###
         
-        # Then add the bees as two smaller hexagons colour = 5
-        if data[int(i*T/4)][cell].bee:
-            x = x + hexagon((x_-1,y_),1)[0]+ hexagon((x_+1,y_),1)[0]
-            y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
-            for j in range(1200):
-                C.append(5)
+    # Manually set parameters since I never develoepd the viewer 
+    #             [N,   Fp, Tc, Tw, Lu,   Ds,                       D0-5, [ Am, ASm,   Bm,  BSm]
+    parameters =  [N, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
+    
+    # Initialise N bees
+    N = parameters[0]
+    bees = initialise_bees(N)
+    
+    # Initialise the hive
+    hive = Hive()
+    
+    # Viewer was never developed
+    #viewer.update_gui(hive)
+    
+    
 
-# I think this was an old way of converting coordinates that can now be ignored    
-#        print(data[i*500][cell].walls)
-#    x = [x for _,x in sorted(zip(C,x), reverse = True)]
-#    y = [x for _,x in sorted(zip(C,y), reverse = True)]
-#    C = sorted(C, reverse = True)
-#    x = [ x + y/2 for x, y in data[i*100] ]
-#    y = [ y*np.sqrt(3)/2 for x, y in data[i*100] ]
-#    print(x,y)
+ 
+    ## Simulation ##
     
-    # Plot on a hexbin heatmap
-    im = ax_lst[i].hexbin(x,y,C, gridsize = 1000)
-    # Add one colour bar to the whole plot (not one for each subplot)
-    cb = fig.colorbar(im, ax=ax_lst)
+    # For each bee at each time step get it's state and then using it's state calculate it's action
     
-print("State Counts: ",state_counts)
-print("Final Cell Count: ",cell_count)
+    data = []
+    state_counts = [0,0,0,0,0,0,0,0,0,0,0]
+    for t in range(T+1):
+        if t % int(T/4) == 0:
+            print('Time Step ', t, ' of ', T+1)
+        for bee in bees:
+            bee_state = bee.get_current_state()
+            bee.request_action(calculate_action(bee_state, hive, parameters))        
+            state_counts[bee_state[3]] += 1
+        # Then record the state of the hive at each time step for plotting
+        data.append(copy.deepcopy(hive.get_cells()))
+        
+    ## Plotter ##   (since the Viewer was never Developed)
+        
+    # Set up axes for plot of four timesteps
+    fig, ax_lst = plt.subplots(2,2)
+    ax_lst = ax_lst.ravel()
+    for i in range(4):
+        print('Plotting Subplot ', i+1,' of 4')
+        # Create lists for the x and y values of lines in the plot and their colour
+        x = []
+        y = []
+        C = []
+        cell_count = 0
+        # On each plot, plot each cell as a large hexagon with a smaller hexagon within it that's coloured by it's average height
+        for cell in list(data[int(i*T/4)].keys()):
+            cell_count += 1
+            # Find average height
+            height = np.mean(data[int(i*T/4)][cell].walls.copy())
+            # Convert to hexagonal coordinate system
+            x_ = (cell[0] + cell[1]/2)*10
+            y_ = (cell[1]*np.sqrt(3)/2)*10     
+            # Record x and y values
+            if height != 0:
+                x = x + hexagon((x_,y_),5)[0] + hexagon((x_,y_),4)[0]
+                y = y + hexagon((x_,y_),5)[1] + hexagon((x_,y_),4)[1]
+                # Record Colour, colour = 0 for the outer hexagon and the average height for the inner
+                for j in range(600):
+                    C.append(0)
+                for k in range(600):
+                    C.append(height)
+                    
+            # This optionally plots the side as smaller hexagons                
+            #else:
+            #    x = x + hexagon((x_,y_),2)[0]
+            #    y = y + hexagon((x_,y_),2)[1]
+            #    for j in range(600):
+            #        C.append(0)
+            
+            # Then add the bees as two smaller hexagons colour = 5
+            if data[int(i*T/4)][cell].bee:
+                x = x + hexagon((x_-1,y_),1)[0]+ hexagon((x_+1,y_),1)[0]
+                y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
+                for j in range(1200):
+                    C.append(5)
+    
+    # I think this was an old way of converting coordinates that can now be ignored    
+    #        print(data[i*500][cell].walls)
+    #    x = [x for _,x in sorted(zip(C,x), reverse = True)]
+    #    y = [x for _,x in sorted(zip(C,y), reverse = True)]
+    #    C = sorted(C, reverse = True)
+    #    x = [ x + y/2 for x, y in data[i*100] ]
+    #    y = [ y*np.sqrt(3)/2 for x, y in data[i*100] ]
+    #    print(x,y)
+        
+        # Plot on a hexbin heatmap
+        im = ax_lst[i].hexbin(x,y,C, gridsize = 1000)
+        # Add one colour bar to the whole plot (not one for each subplot)
+        cb = fig.colorbar(im, ax=ax_lst)
+        
+    print("State Counts: ",state_counts)
+    print("Final Cell Count: ",cell_count)
+    return state_counts, cell_count
