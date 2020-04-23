@@ -325,7 +325,7 @@ def initialise_bees(N):
     """
     bees = []
     for i in range(N):
-        bees.append(Bee([(999.999),0,0,0,99]))
+        bees.append(Bee([(999,999),0,0,0,99]))
     return bees
 
 # Classes here
@@ -504,14 +504,11 @@ def arrow(position,orientation):
     return xpoints, ypoints
 
 
-
-
-
 ### Main Loop ###
     
 # Manually set parameters since I never develoepd the viewer 
 #             [N,   Fp, Tc, Tw, Lu,   Ds,                       D0-5, [ Am, ASm,   Bm,  BSm]
-parameters =  [4, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
+parameters =  [8, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
 
 # Initialise N bees
 N = parameters[0]
@@ -528,18 +525,18 @@ hive = Hive()
 ## Simulation ##
 
 # For each bee at each time step get it's state and then using it's state calculate it's action
-T = 1000
+T = 6000
 data = []
+state_counts = [0,0,0,0,0,0,0,0,0,0,0]
 for t in range(T+1):
     if t % int(T/4) == 0:
         print('Time Step ', t, ' of ', T+1)
     for bee in bees:
         bee_state = bee.get_current_state()
         bee.request_action(calculate_action(bee_state, hive, parameters))        
+        state_counts[bee_state[3]] += 1
     # Then record the state of the hive at each time step for plotting
     data.append(copy.deepcopy(hive.get_cells()))
-    
-    
     
 ## Plotter ##   (since the Viewer was never Developed)
     
@@ -552,9 +549,10 @@ for i in range(4):
     x = []
     y = []
     C = []
-    
+    cell_count = 0
     # On each plot, plot each cell as a large hexagon with a smaller hexagon within it that's coloured by it's average height
     for cell in list(data[int(i*T/4)].keys()):
+        cell_count += 1
         # Find average height
         height = np.mean(data[int(i*T/4)][cell].walls.copy())
         # Convert to hexagonal coordinate system
@@ -583,7 +581,7 @@ for i in range(4):
             y = y + hexagon((x_-1,y_),1)[1]+ hexagon((x_+1,y_),1)[1]
             for j in range(1200):
                 C.append(5)
-            
+
 # I think this was an old way of converting coordinates that can now be ignored    
 #        print(data[i*500][cell].walls)
 #    x = [x for _,x in sorted(zip(C,x), reverse = True)]
@@ -597,3 +595,6 @@ for i in range(4):
     im = ax_lst[i].hexbin(x,y,C, gridsize = 1000)
     # Add one colour bar to the whole plot (not one for each subplot)
     cb = fig.colorbar(im, ax=ax_lst)
+    
+print("State Counts: ",state_counts)
+print("Final Cell Count: ",cell_count)
