@@ -13,6 +13,28 @@ import Karsai_neat
 import numpy as np
 
 
+def calculate_energy(s_r, c_a):
+	'''
+	a function to calculate the energy expenditure of building a nest
+	units are kcal/cell
+	s_e is state energy - that's the result
+	c_a is average cell number reported by the simulation
+	'''
+
+	flight_cost = 1.52
+	cell_cost = 4
+	moving_cost = 0
+	collection_cost = 0
+
+	s_e = s_r
+	s_e.pop('building a wall'); s_e.pop('building a base')
+
+	s_e['flying'] *= flight_cost
+	s_e['colecting pulp'] *= collection_cost
+	s_e['moving on a comb'] *= moving_cost
+	s_e['building'] = c_a * cell_cost 
+
+
 S = int(input("how many simulations would you like to run?  ")) # number of simulations to run
 T = int(input("how many time steps within a simulation?  ")) # number of timesteps
 N = int(input("how many bees?  ")) # number of bees 
@@ -33,7 +55,11 @@ for s in range(S):
 
 cell_average = np.mean(cells)
 cell_stddev = np.std(cells)
+energy_results = calculate_energy(state_results,cell_average)
+
 print(f"\nRaw data of final cell numbers: \n {cells}")
 print(f"\nNumber of bees = {N}\nTime = {T}")
 print(f"\nAvg={cell_average:.2f}, StdDev={cell_stddev:.2f}")
 print(state_results, '\n')
+print('energy costs:\n', energy_results, '\n')
+
