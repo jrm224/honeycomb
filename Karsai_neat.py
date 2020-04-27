@@ -504,13 +504,13 @@ def arrow(position,orientation):
     return xpoints, ypoints
 
 
-def main(N=4, T=6000, plotter=False):
+def main(N=4, T=6000, plotter=True, Dparams=[0,0,0.1,0.5,0.8,0.9]):
     
     ### Main Loop ###
         
     # Manually set parameters since I never develoepd the viewer 
-    #             [N,   Fp, Tc, Tw, Lu,   Ds,                       D0-5, [ Am, ASm,   Bm,  BSm]
-    parameters =  [N, 0.25,  5,  2,  9, 0.95, [0, 0, 0.1, 0.5, 0.8, 0.9], [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
+    #             [N,   Fp, Tc, Tw, Lu,   Ds,    D0-5, [ Am, ASm,   Bm,  BSm]
+    parameters =  [N, 0.25,  5,  2,  9, 0.95, Dparams, [0.5, 0.2, 0.02, 0.04]] #viewer.get_params()
     
     # Initialise N bees
     N = parameters[0]
@@ -540,8 +540,7 @@ def main(N=4, T=6000, plotter=False):
             state_counts[bee_state[3]] += 1
         # Then record the state of the hive at each time step for plotting
         data.append(copy.deepcopy(hive.get_cells()))
-        
-    
+   
     ## Plotter ##   (since the Viewer was never Developed)
         
     # Set up axes for plot of four timesteps
@@ -603,4 +602,4 @@ def main(N=4, T=6000, plotter=False):
        
     print("State Counts: ",state_counts)
     print("Final Cell Count: ",cell_count)
-    return state_counts, cell_count
+    return state_counts, cell_count, ax_lst

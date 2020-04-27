@@ -1,5 +1,6 @@
 """
 For flight, the constant is 1.52 kcal per timestep
+For building it's 1.26 kcal per cell
 
 The states are: 
 0 and 2 are flying, 
@@ -21,45 +22,60 @@ def calculate_energy(s_r, c_a):
 	c_a is average cell number reported by the simulation
 	'''
 
-	flight_cost = 1.52
-	cell_cost = 4
+	flight_cost = 1
+	deposition_cost = 3
 	moving_cost = 0
 	collection_cost = 0
 
-	s_e = s_r
-	s_e.pop('building a wall'); s_e.pop('building a base')
+	s_e = s_r.copy()
 
 	s_e['flying'] *= flight_cost
-	s_e['colecting pulp'] *= collection_cost
+	s_e['collecting pulp'] *= collection_cost
 	s_e['moving on a comb'] *= moving_cost
-	s_e['building'] = c_a * cell_cost 
+	s_e['building'] = (s_e['building a wall'] + 4 * s_e['building a base']) * deposition_cost 
 
+	s_e.pop('building a wall'); s_e.pop('building a base')
+
+	return s_e
 
 S = int(input("how many simulations would you like to run?  ")) # number of simulations to run
 T = int(input("how many time steps within a simulation?  ")) # number of timesteps
 N = int(input("how many bees?  ")) # number of bees 
-plotter = bool(int(input("1 for plots, 0 for no plots "))) # make plots or not
-states, cells = [], []
+huj = input('To use stock parameters press ENTER\nOtherwise Dparams in format 0,1,2,3,4,5: ')
+try:
+	Dparams = [float(i) for i in huj.split(',')]
+except:
+	Dparams = [0,0,0.1,0.5,0.8,0.9]
+# plotter = bool(int(input("1 for plots, 0 for no plots "))) # make plots or not
+states, cells, figures = [], [], []
 state_results = {'flying':0, 'collecting pulp':0, 'moving on a comb':0, 'building a wall':0, 'building a base':0}
 
-for s in range(S):
-	print(f"\nsimulation run number {s+1}/{S}")
-	state, cell = Karsai_neat.main(N=N,T=T,plotter=plotter)
-	states.append(state)
-	state_results['flying'] += state[0] + state[2]
-	state_results['collecting pulp'] += state[1]
-	state_results['moving on a comb'] += sum(state[3:5])
-	state_results['building a wall'] += sum(state[5:10])
-	state_results['building a base'] += state[10]
-	cells.append(cell)
+s = 0
+while s < S:
+	try:
+		print(f"\nsimulation run number {s+1}/{S}")
+		state, cell, fig = Karsai_neat.main(N=N,T=T,Dparams=Dparams)
+		states.append(state)
+		state_results['flying'] += (state[0] + state[2])/S
+		state_results['collecting pulp'] += state[1]/S
+		state_results['moving on a comb'] += sum(state[3:5])/S
+		state_results['building a wall'] += sum(state[5:10])/S
+		state_results['building a base'] += state[10]/S
+		cells.append(cell)
+		figures.append(fig)
+		s += 1
+
+	except Exception as ex:
+		print('simulation failed')
+		print(ex)
 
 cell_average = np.mean(cells)
 cell_stddev = np.std(cells)
 energy_results = calculate_energy(state_results,cell_average)
 
-print(f"\nRaw data of final cell numbers: \n {cells}")
 print(f"\nNumber of bees = {N}\nTime = {T}")
-print(f"\nAvg={cell_average:.2f}, StdDev={cell_stddev:.2f}")
+print(f"\nRaw data of final cell numbers: \n {cells}")
+print(f"Avg={cell_average:.2f}, StdDev={cell_stddev:.2f}\n")
 print(state_results, '\n')
 print('energy costs:\n', energy_results, '\n')
 
